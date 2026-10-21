@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>APP CAMPO - Aprovação de cadastro</title>
+<style>
+  :root { --base:#003a30; --acao:#00705c; --perigo:#a3261a; --fundo:#f2f6f4; --texto:#0f1f1b; --suave:#46584f; --linha:#c5d1cc; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:var(--fundo); color:var(--texto); font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+  header { background:var(--base); color:#fff; padding:18px 20px; font-weight:600; font-size:18px; }
+  main { max-width:480px; margin:0 auto; padding:24px 20px 40px; }
+  .cartao { background:#fff; border:1px solid var(--linha); border-radius:12px; padding:20px; }
+  h1 { margin:0 0 16px; font-size:22px; line-height:1.25; }
+  dl { margin:0 0 20px; display:grid; grid-template-columns:auto 1fr; gap:8px 14px; }
+  dt { color:var(--suave); }
+  dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+  button { width:100%; min-height:56px; border:none; border-radius:10px; font-size:18px; font-weight:600; color:#fff; background:var(--acao); cursor:pointer; }
+  button.recusar { background:var(--perigo); }
+  button:disabled { background:#5f7169; cursor:default; }
+  .msg { margin:0 0 14px; line-height:1.45; }
+  .ok { color:var(--acao); font-weight:600; }
+  .erro { color:var(--perigo); font-weight:600; }
+  .nota { margin-top:16px; color:var(--suave); font-size:14px; line-height:1.4; }
+</style>
+</head>
+<body>
+<header>APP CAMPO · Vaporenge</header>
+<main><div class="cartao" id="cartao"><p class="msg">Carregando…</p></div></main>
+<script>
+(function () {
+  // Esta página não guarda nada e não tem segredo. O link do e-mail traz um código assinado depois do "#";
+  // o servidor confere a assinatura e o prazo. Abrir a página não muda nada: só o botão aprova ou recusa.
+  var FUNCAO = 'https://mbgzsqonbdefuutqtcqx.supabase.co/functions/v1/aprovacao';
+  var cartao = document.getElementById('cartao');
+  var token = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+
+  function el(tag, props, filhos) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === 'class') e.className = props[k]; else if (k === 'texto') e.textContent = props[k]; else e[k] = props[k]; });
+    (filhos || []).forEach(function (f) { e.appendChild(f); });
+    return e;
+  }
+  function mostrar() {
+    cartao.textContent = '';
+    Array.prototype.slice.call(arguments).forEach(function (n) { cartao.appendChild(n); });
+  }
+  function aviso(texto, classe) { mostrar(el('p', { class: 'msg ' + (classe || ''), texto: texto })); }
+
+  if (!token) { aviso('Link incompleto. Abra o botão direto pelo e-mail.', 'erro'); return; }
+
+  function chamar(metodo, corpo) {
+    var url = FUNCAO + (metodo === 'GET' ? '?t=' + encodeURIComponent(token) : '');
+    var opcoes = { method: metodo };
+    if (metodo === 'POST') { opcoes.headers = { 'Content-Type': 'application/json' }; opcoes.body = JSON.stringify(corpo); }
+    return fetch(url, opcoes).then(function (r) { return r.json().catch(function () { return {}; }); });
+  }
+
+  var ROTULO = { pendente: 'Em análise', aprovado: 'Aprovado', recusado: 'Recusado' };
+
+  chamar('GET').then(function (d) {
+    if (!d.ok) { aviso(d.erro || 'Não foi possível abrir este link agora.', 'erro'); return; }
+    var aprovar = d.acao === 'aprovar';
+    var lista = el('dl', {}, [
+      el('dt', { texto: 'Nome' }), el('dd', { texto: d.nome }),
+      el('dt', { texto: 'Nascimento' }), el('dd', { texto: d.nascimento }),
+      el('dt', { texto: 'CPF' }), el('dd', { texto: d.cpf }),
+      el('dt', { texto: 'E-mail' }), el('dd', { texto: d.email }),
+      el('dt', { texto: 'Situação' }), el('dd', { texto: ROTULO[d.status] || d.status })
+    ]);
+    var botao = el('button', { type: 'button', class: aprovar ? '' : 'recusar', texto: aprovar ? 'Aprovar este técnico' : 'Recusar este cadastro' });
+    var resultado = el('p', { class: 'msg', role: 'status' });
+    botao.addEventListener('click', function () {
+      botao.disabled = true;
+      botao.textContent = 'Enviando…';
+      chamar('POST', { t: token }).then(function (r) {
+        if (!r.ok) { botao.disabled = false; botao.textContent = aprovar ? 'Aprovar este técnico' : 'Recusar este cadastro'; resultado.className = 'msg erro'; resultado.textContent = r.erro || 'Não foi possível concluir agora. Tente de novo.'; return; }
+        mostrar(el('h1', { texto: r.status === 'aprovado' ? 'Cadastro aprovado' : 'Cadastro recusado' }),
+          el('p', { class: 'msg ok', texto: r.status === 'aprovado' ? r.nome + ' já pode entrar no app com o e-mail e a senha que cadastrou.' : r.nome + ' não terá acesso ao app.' }),
+          el('p', { class: 'nota', texto: 'Pode fechar esta página.' }));
+      }).catch(function () { botao.disabled = false; botao.textContent = aprovar ? 'Aprovar este técnico' : 'Recusar este cadastro'; resultado.className = 'msg erro'; resultado.textContent = 'Sem conexão. Tente de novo.'; });
+    });
+    mostrar(el('h1', { texto: aprovar ? 'Aprovar este técnico?' : 'Recusar este cadastro?' }), lista, resultado, botao,
+      el('p', { class: 'nota', texto: aprovar ? 'Ao aprovar, a pessoa passa a entrar no APP CAMPO com o e-mail e a senha que cadastrou.' : 'Ao recusar, a pessoa continua sem acesso ao app.' }));
+  }).catch(function () { aviso('Sem conexão. Tente de novo.', 'erro'); });
+})();
+</script>
+</body>
+</html>

@@ -70,6 +70,11 @@
       el('dt', { texto: 'E-mail' }), el('dd', { texto: d.email }),
       el('dt', { texto: 'Situação' }), el('dd', { texto: ROTULO[d.status] || d.status })
     ]);
+    if (d.status !== 'pendente') {
+      mostrar(el('h1', { texto: d.status === 'aprovado' ? 'Cadastro já aprovado' : 'Cadastro já recusado' }), lista,
+        el('p', { class: 'nota', texto: 'Este cadastro já foi decidido. O link do e-mail não muda mais a decisão.' }));
+      return;
+    }
     var botao = el('button', { type: 'button', class: aprovar ? '' : 'recusar', texto: aprovar ? 'Aprovar este técnico' : 'Recusar este cadastro' });
     var resultado = el('p', { class: 'msg', role: 'status' });
     botao.addEventListener('click', function () {
